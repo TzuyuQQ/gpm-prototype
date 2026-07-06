@@ -782,7 +782,7 @@ createApp({
       const fm = this.filterMonth;
       const confirmed = ACTUAL.map((v, i) => ({
         value: i < CUTOFF ? v : 0,
-        itemStyle: { color: fm ? (MONTHS[i] === fm ? '#1677ff' : '#91caff') : '#2d8cf0', borderRadius: [3,3,0,0] },
+        itemStyle: { color: fm ? (MONTHS[i] === fm ? '#1677ff' : '#91caff') : '#1677ff', borderRadius: [3,3,0,0] },
       }));
       const forecast = PLAN.map((v, i) => ({
         value: i >= CUTOFF ? v : 0,
@@ -790,16 +790,27 @@ createApp({
       }));
       const cumAct = cumulate(ACTUAL);
 
-      const labels = MONTHS.map(m => m.slice(2).replace('-', '/'));
+      const MON_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const labels = MONTHS.map(m => {
+        const [y, mo] = m.split('-');
+        return MON_LABELS[parseInt(mo,10)-1] + " '" + y.slice(2);
+      });
+
+      const fmtEur = v => {
+        if (v >= 1000000) return 'EUR ' + (v/1000000).toFixed(2) + 'M';
+        if (v >= 1000)    return 'EUR ' + (v/1000).toFixed(0) + 'K';
+        return v > 0 ? 'EUR ' + v : '';
+      };
 
       this.monthlyChart.setOption({
         tooltip: {
           trigger: 'axis',
           ...TOOLTIP_STYLE,
           formatter(params) {
-            const mo = params[0].axisValue;
-            const isForecast = MONTHS[params[0].dataIndex] >= MONTHS[CUTOFF];
-            let s = `<b>${mo}${isForecast ? ' <span style="font-size:11px;color:#808695;font-weight:400;">（预测）</span>' : ''}</b><br/>`;
+            const idx = params[0].dataIndex;
+            const mo = MONTHS[idx];
+            const isForecast = mo >= MONTHS[CUTOFF];
+            let s = `<b>${labels[idx]}${isForecast ? ' <span style="font-size:11px;color:#808695;font-weight:400;">（预测）</span>' : ''}</b><br/>`;
             params.forEach(p => {
               if (p.value == null || p.value === 0) return;
               s += `${p.marker}${p.seriesName}：EUR ${Number(p.value).toLocaleString()}<br/>`;
@@ -812,15 +823,17 @@ createApp({
           top: 4, right: 0, icon: 'circle', itemWidth: 8, itemHeight: 8,
           textStyle: { fontSize: 11, color: '#515a6e' }, itemGap: 16,
         },
-        grid: { top: 36, bottom: 28, left: 70, right: 20 },
+        grid: { top: 48, bottom: 28, left: 80, right: 20 },
         xAxis: {
           type: 'category', data: labels,
-          axisLabel: { color: '#808695', fontSize: 11 },
+          axisLabel: { color: '#808695', fontSize: 10 },
           axisLine: { lineStyle: { color: '#e8eaec' } },
           axisTick: { show: false },
         },
         yAxis: {
           type: 'value',
+          name: 'EUR',
+          nameTextStyle: { color: '#808695', fontSize: 11 },
           axisLabel: {
             fontSize: 11, color: '#808695',
             formatter: v => v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v,
@@ -832,10 +845,18 @@ createApp({
           {
             name: '已回款', type: 'bar', stack: 'amt', data: confirmed,
             barMaxWidth: 22,
+            label: {
+              show: true, position: 'top', fontSize: 10, color: '#1677ff', fontWeight: 600,
+              formatter: p => p.value > 0 ? fmtEur(p.value) : '',
+            },
           },
           {
             name: '计划回款', type: 'bar', stack: 'amt', data: forecast,
             barMaxWidth: 22,
+            label: {
+              show: true, position: 'top', fontSize: 10, color: '#808695', fontWeight: 600,
+              formatter: p => p.value > 0 ? fmtEur(p.value) : '',
+            },
           },
           {
             name: '累计回款', type: 'line', data: cumAct,
@@ -844,7 +865,7 @@ createApp({
             itemStyle: { color: '#722ed1' },
             label: {
               show: true, position: 'top',
-              formatter: p => p.value > 0 ? 'EUR ' + (p.value/1000000).toFixed(2)+'M' : '',
+              formatter: p => fmtEur(p.value),
               fontSize: 10, color: '#722ed1', fontWeight: 600,
             },
           },
