@@ -275,8 +275,9 @@
 
         <!-- Card 2: 月度回款走势 -->
         <div class="ivu-card">
-          <div class="ivu-card-head">
+          <div class="ivu-card-head" style="display:flex;align-items:center;">
             <p>月度回款走势</p>
+            <span style="margin-left:auto;font-size:11px;color:#808695;font-weight:400;">柱形=已回款/计划，橙色=逾期未收，紫线=累计回款</span>
           </div>
           <div class="ivu-card-body">
             <div class="chart-box" ref="monthlyChartEl"></div>
@@ -780,14 +781,29 @@ createApp({
       // Solid blue bars = confirmed receipts (past), light blue bars = planned forecast (future)
       // Purple line = cumulative receipts showing progress toward contract total
       const fm = this.filterMonth;
+      const baseBlue  = fm ? '#91caff' : '#1677ff';
+      const baseOrange= fm ? '#ffd8a8' : '#fa8c16';
+      const baseFcast = fm ? '#d6eaff' : '#91caff';
+
+      // Blue UP: actual receipts (confirmed, past)
       const confirmed = ACTUAL.map((v, i) => ({
         value: i < CUTOFF ? v : 0,
-        itemStyle: { color: fm ? (MONTHS[i] === fm ? '#1677ff' : '#91caff') : '#1677ff', borderRadius: [3,3,0,0] },
+        itemStyle: { color: fm && MONTHS[i]===fm ? '#1677ff' : baseBlue, borderRadius:[3,3,0,0] },
       }));
+
+      // Orange DOWN: planned-but-missed in past months (payment delay)
+      const overdue = PLAN.map((v, i) => ({
+        value: (i < CUTOFF && v > 0 && ACTUAL[i] === 0) ? -v : 0,
+        itemStyle: { color: fm && MONTHS[i]===fm ? '#fa8c16' : baseOrange, borderRadius:[0,0,3,3] },
+      }));
+
+      // Light blue UP: future forecast
       const forecast = PLAN.map((v, i) => ({
         value: i >= CUTOFF ? v : 0,
-        itemStyle: { color: fm ? (MONTHS[i] === fm ? '#4096ff' : '#d6eaff') : '#91caff', borderRadius: [3,3,0,0] },
+        itemStyle: { color: fm && MONTHS[i]===fm ? '#4096ff' : baseFcast, borderRadius:[3,3,0,0] },
       }));
+
+      // Purple cumulative line of actual receipts
       const cumAct = cumulate(ACTUAL);
 
       const MON_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -797,9 +813,10 @@ createApp({
       });
 
       const fmtEur = v => {
-        if (v >= 1000000) return 'EUR ' + (v/1000000).toFixed(2) + 'M';
-        if (v >= 1000)    return 'EUR ' + (v/1000).toFixed(0) + 'K';
-        return v > 0 ? 'EUR ' + v : '';
+        const abs = Math.abs(v);
+        if (abs >= 1000000) return 'EUR ' + (v/1000000).toFixed(2) + 'M';
+        if (abs >= 1000)    return 'EUR ' + (v/1000).toFixed(0) + 'K';
+        return abs > 0 ? 'EUR ' + v : '';
       };
 
       this.monthlyChart.setOption({
@@ -819,9 +836,9 @@ createApp({
           }
         },
         legend: {
-          data: ['已回款','计划回款','累计回款'],
+          data: ['已回款','逾期未收','计划回款','累计回款'],
           top: 4, right: 0, icon: 'circle', itemWidth: 8, itemHeight: 8,
-          textStyle: { fontSize: 11, color: '#515a6e' }, itemGap: 16,
+          textStyle: { fontSize: 11, color: '#515a6e' }, itemGap: 14,
         },
         grid: { top: 48, bottom: 28, left: 80, right: 20 },
         xAxis: {
@@ -836,14 +853,17 @@ createApp({
           nameTextStyle: { color: '#808695', fontSize: 11 },
           axisLabel: {
             fontSize: 11, color: '#808695',
-            formatter: v => v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v,
+            formatter: v => {
+              const abs = Math.abs(v);
+              return abs >= 1000000 ? (v/1000000).toFixed(1)+'M' : abs >= 1000 ? (v/1000).toFixed(0)+'K' : v;
+            },
           },
           splitLine: { lineStyle: { color: '#f0f2f5' } },
           axisLine: { show: false }, axisTick: { show: false },
         },
         series: [
           {
-            name: '已回款', type: 'bar', stack: 'amt', data: confirmed,
+            name: '已回款', type: 'bar', stack: 'pos', data: confirmed,
             barMaxWidth: 22,
             label: {
               show: true, position: 'top', fontSize: 10, color: '#1677ff', fontWeight: 600,
@@ -851,11 +871,19 @@ createApp({
             },
           },
           {
-            name: '计划回款', type: 'bar', stack: 'amt', data: forecast,
+            name: '计划回款', type: 'bar', stack: 'pos', data: forecast,
             barMaxWidth: 22,
             label: {
               show: true, position: 'top', fontSize: 10, color: '#808695', fontWeight: 600,
               formatter: p => p.value > 0 ? fmtEur(p.value) : '',
+            },
+          },
+          {
+            name: '逾期未收', type: 'bar', stack: 'neg', data: overdue,
+            barMaxWidth: 22,
+            label: {
+              show: true, position: 'bottom', fontSize: 10, color: '#fa8c16', fontWeight: 600,
+              formatter: p => p.value < 0 ? fmtEur(p.value) : '',
             },
           },
           {
@@ -865,7 +893,7 @@ createApp({
             itemStyle: { color: '#722ed1' },
             label: {
               show: true, position: 'top',
-              formatter: p => fmtEur(p.value),
+              formatter: p => p.value > 0 ? fmtEur(p.value) : '',
               fontSize: 10, color: '#722ed1', fontWeight: 600,
             },
           },
