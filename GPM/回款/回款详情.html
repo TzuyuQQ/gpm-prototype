@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>回款管理 — GPM</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+                   "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+      font-size: 14px; color: #515a6e; background: #f0f2f5;
+      -webkit-font-smoothing: antialiased; line-height: 1.5;
+    }
+
+    /* ── TOP NAV ── */
+    .top-nav {
+      position: fixed; top: 0; left: 0; right: 0; height: 60px;
+      background: #fff; box-shadow: 0 1px 4px rgba(0,21,41,.08);
+      display: flex; align-items: center; padding: 0 20px; z-index: 1000;
+    }
+    .nav-logo { display: flex; align-items: center; margin-right: 20px; }
+    .nav-logo-g { font-size: 20px; font-weight: 900; color: #2d8cf0; letter-spacing: -1px; }
+    .nav-logo-plus {
+      width: 20px; height: 20px; border-radius: 50%; background: #ff7a00;
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 900;
+    }
+    .nav-apps { display: flex; gap: 2px; }
+    .nav-app { font-size: 12px; padding: 4px 10px; border-radius: 4px; cursor: pointer; color: #515a6e; }
+    .nav-app.active { background: #e8f4ff; color: #2d8cf0; font-weight: 500; }
+    .nav-tools { margin-left: auto; display: flex; align-items: center; height: 100%; gap: 0; }
+    .nav-tool { font-size: 13px; color: #515a6e; cursor: pointer; padding: 0 8px; }
+    .nav-tool:hover { color: #2d8cf0; }
+    .nav-tool.todo { color: #009bf7; }
+    .nav-avatar {
+      width: 32px; height: 32px; border-radius: 50%; background: #2d8cf0;
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; cursor: pointer; margin-left: 8px;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      position: fixed; top: 60px; left: 0; bottom: 0; width: 60px;
+      background-image: linear-gradient(#3273c4, #009fef);
+      display: flex; flex-direction: column; z-index: 900;
+    }
+    .s-item {
+      width: 60px; height: 56px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; color: rgba(255,255,255,0.75); gap: 3px; transition: background .15s;
+    }
+    .s-item:hover { background-color: rgba(0,0,0,.2); color: #fff; }
+    .s-item.active { background-color: rgba(0,0,0,.2); color: #fff; }
+    .s-icon { font-size: 17px; line-height: 1; }
+    .s-label { font-size: 10px; line-height: 1; }
+
+    /* ── MAIN WRAPPER ── */
+    .main-wrap { margin-left: 60px; margin-top: 60px; background: #f1f1f1; min-height: calc(100vh - 60px); }
+
+    /* ── BREADCRUMB ── */
+    .breadcrumb {
+      background: #fff; border-bottom: 1px solid #e8eaec;
+      padding: 0 20px; height: 38px; display: flex; align-items: center;
+      font-size: 13px; color: #515a6e; gap: 6px;
+    }
+    .bc-link { cursor: pointer; }
+    .bc-link:hover { color: #2d8cf0; }
+    .bc-sep { color: #bbbec4; font-size: 12px; }
+    .bc-cur { color: #17233d; }
+
+    /* ── CONTENT ── */
+    .content { padding: 8px; }
+
+    /* ── PROJECT HEADER ── */
+    .proj-wrap { background: #fff; }
+    .proj-head { padding: 16px 20px 10px; border-bottom: 1px solid #e8eaec; }
+    .proj-back { font-size: 13px; color: #2d8cf0; cursor: pointer; margin-bottom: 8px; display: inline-block; }
+    .proj-back:hover { text-decoration: underline; }
+    .proj-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+    .proj-title { font-size: 18px; color: #333; font-weight: 700; }
+    .ivu-tag-text { }
+    .proj-tag {
+      display: inline-block; height: 22px; line-height: 22px;
+      padding: 0 8px; border-radius: 3px; font-size: 12px;
+      vertical-align: middle; color: #fff;
+    }
+    .proj-tag.green { background-color: #32bc87; }
+    .proj-tag.blue  { background-color: #2d8cf0; }
+    .proj-no { font-size: 12px; color: #808695; }
+
+    /* ── PAGE TABS (ivu-tabs) ── */
+    .ivu-tabs-bar {
+      border-bottom: 1px solid #dcdee2; margin-bottom: 0; padding: 0 20px;
+    }
+    .ivu-tabs-nav-scroll { overflow-x: auto; overflow-y: hidden; }
+    .ivu-tabs-nav-scroll::-webkit-scrollbar { height: 0; }
+    .ivu-tabs-nav { display: inline-flex; }
+    .ivu-tabs-tab {
+      display: inline-block; padding: 12px 16px;
+      cursor: pointer; font-size: 14px; color: #515a6e;
+      border-bottom: 2px solid transparent;
+      transition: color .2s; white-space: nowrap;
+    }
+    .ivu-tabs-tab:hover { color: #57a3f3; }
+    .ivu-tabs-tab.active { color: #2d8cf0; font-weight: 700; border-bottom-color: #2d8cf0; }
+
+    /* ── ivu-card ── */
+    .ivu-card {
+      background: #fff; border-radius: 4px; border: 1px solid #e8eaec;
+      font-size: 14px; position: relative;
+      transition: all .2s ease-in-out; margin-bottom: 8px;
+    }
+    .ivu-card:hover { box-shadow: 0 1px 6px rgba(0,0,0,.2); border-color: #eee; }
+    .ivu-card-head {
+      border-bottom: 1px solid #e8eaec; padding: 14px 16px;
+      line-height: 1; display: flex; align-items: center;
+    }
+    .ivu-card-head p {
+      display: inline-block; height: 20px; line-height: 20px;
+      font-size: 16px; color: #17233d; font-weight: 700;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+    }
+    .ivu-card-body { padding: 16px; }
+
+    /* ── CHART TOGGLE BUTTONS ── */
+    .btn-group { display: inline-flex; border: 1px solid #dcdee2; border-radius: 4px; overflow: hidden; }
+    .btn-group .btn {
+      display: inline-block; padding: 4px 12px;
+      font-size: 12px; cursor: pointer; color: #515a6e;
+      background: #fff; border: none; border-right: 1px solid #dcdee2;
+      transition: all .2s; line-height: 20px;
+    }
+    .btn-group .btn:last-child { border-right: none; }
+    .btn-group .btn:hover { color: #57a3f3; }
+    .btn-group .btn.active { color: #fff; background: #2d8cf0; }
+    .chart-box { height: 400px; }
+
+    /* ── PROGRESS BAR (exact GPM .project-money-back__process style) ── */
+    .pmb-process-box { display: flex; align-items: flex-start; }
+    .pmb-process-tit { width: 80px; margin-right: 20px; font-size: 14px; color: #515a6e; padding-top: 2px; flex-shrink: 0; }
+    .pmb-process { display: flex; flex: 1; }
+    .process-item { position: relative; }
+    .process-bg { width: 100%; height: 15px; background-color: #fff; border: 1px solid #dcdcdc; }
+    .process-in { height: 15px; background-color: #7bc92d; }
+    .process-in.active { background-color: green; }
+    .process-name { margin-top: 5px; text-align: center; font-size: 12px; color: #409eff; font-weight: 500; }
+    .process-pct  { text-align: center; font-size: 11px; color: #808695; margin-top: 2px; }
+    .process-hover-box {
+      width: 200px; padding: 10px; border-radius: 5px;
+      border: 1px solid #ddebff; box-shadow: 1px 1px 3px rgba(0,0,0,.1);
+      position: absolute; left: 50%; bottom: 115%; margin-left: -100px;
+      background: #fff; color: #515a6e; font-size: 12px; z-index: 20; line-height: 1.8;
+    }
+    .process-hover-box::after {
+      content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -5px;
+      border: 5px solid transparent; border-top-color: #ddebff; border-bottom: none;
+    }
+
+    /* ── ivu-table style ── */
+    .ivu-table-wrapper { overflow-x: auto; }
+    .ivu-table { width: 100%; border-collapse: collapse; font-size: 14px; color: #333c4b; white-space: nowrap; }
+    .ivu-table th {
+      background-color: #f5f9fa; border-bottom: 1px solid #f0f4f5;
+      height: 50px; text-align: left; font-weight: 500; color: #515a6e;
+    }
+    .ivu-table td {
+      height: 50px; background-color: #fff;
+      border-bottom: 1px solid #e8eaec; text-align: left;
+      transition: background-color .2s;
+    }
+    .ivu-table tr:hover td { background-color: #ebf7ff; }
+    .ivu-table tr:last-child td { border-bottom: none; }
+    .ivu-table-cell { padding: 0 18px; overflow: hidden; white-space: nowrap; display: block; }
+    .ivu-tag {
+      display: inline-block; height: 22px; line-height: 20px;
+      padding: 0 8px; border-radius: 3px; font-size: 12px; vertical-align: middle;
+    }
+    .tag-success { background: #e8fff4; color: #32bc87; border: 1px solid #b3e19d; }
+    .tag-warning { background: #fdf6ec; color: #e6a23c; border: 1px solid #fce4b3; }
+    .tag-error   { background: #fef0f0; color: #ed4014; border: 1px solid #fbc4c4; }
+
+    /* ── DEFINITION BOX ── */
+    .def-box {
+      background: #f9fafc; border: 1px solid #e8eaec; border-radius: 4px;
+      padding: 10px 14px; margin-top: 12px; font-size: 12px;
+      color: #808695; line-height: 1.8;
+    }
+    .def-box strong { color: #515a6e; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f0f2f5; }
+    ::-webkit-scrollbar-thumb { background: #bbbec4; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #808695; }
+  </style>
+</head>
+<body>
+
+<!-- ── TOP NAV ── -->
+<div class="top-nav">
+  <div class="nav-logo">
+    <span class="nav-logo-g">Geek</span>
+    <span class="nav-logo-plus">+</span>
+  </div>
+  <div style="display:flex;align-items:center;margin-left:8px;cursor:pointer;padding:0 10px;font-size:18px;color:#555;line-height:60px;">☰</div>
+  <div class="nav-apps">
+    <div class="nav-app">GOP</div>
+    <div class="nav-app active">IS</div>
+  </div>
+  <div class="nav-tools">
+    <span class="nav-tool" style="font-size:18px;line-height:1;">⚙</span>
+    <div class="nav-avatar">TZ</div>
+  </div>
+</div>
+
+<!-- ── SIDEBAR ── -->
+<div class="sidebar">
+  <div class="s-item"><div class="s-icon">⊞</div><div class="s-label">首页</div></div>
+  <div class="s-item"><div class="s-icon">⧉</div><div class="s-label">工作流</div></div>
+  <div class="s-item active"><div class="s-icon">▣</div><div class="s-label">我的项目</div></div>
+  <div class="s-item"><div class="s-icon">≡</div><div class="s-label">我的报告</div></div>
+  <div class="s-item"><div class="s-icon">◈</div><div class="s-label">我的回款</div></div>
+  <div class="s-item"><div class="s-icon">✦</div><div class="s-label">我的工具</div></div>
+  <div class="s-item"><div class="s-icon">↺</div><div class="s-label">复盘管理</div></div>
+  <div class="s-item"><div class="s-icon">⏱</div><div class="s-label">工时管理</div></div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="main-wrap">
+
+  <!-- BREADCRUMB -->
+  <div class="breadcrumb">
+    <span class="bc-link">我的项目</span>
+    <span class="bc-sep">/</span>
+    <span class="bc-cur">项目详情</span>
+  </div>
+
+  <div id="app">
+    <div class="content">
+
+      <!-- Project Header + Tabs -->
+      <div class="proj-wrap" style="margin-bottom:8px;">
+        <div class="proj-head">
+          <div class="proj-back">‹ 返回上一级</div>
+          <div class="proj-title-row">
+            <span class="proj-title">P-Dagrofa-DK-仓库-Ⅰ期-渠道-STL-Dagrofa-PopPick-Denmark</span>
+            <span class="proj-tag green">正常</span>
+            <span class="proj-tag blue">S2</span>
+          </div>
+          <div class="proj-no">GPMS250288</div>
+        </div>
+        <div class="ivu-tabs-bar">
+          <div class="ivu-tabs-nav-scroll">
+            <div class="ivu-tabs-nav">
+              <div v-for="tab in PAGE_TABS" :key="tab"
+                   :class="['ivu-tabs-tab', { active: tab === activePage }]"
+                   @click="activePage = tab">{{ tab }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 回款 Section -->
+      <div>
+
+        <!-- Card 1: 整体趋势（里程碑维度，原图） -->
+        <div class="ivu-card">
+          <div class="ivu-card-head">
+            <p>整体趋势</p>
+          </div>
+          <div class="ivu-card-body">
+            <div class="chart-box" ref="milestoneChartEl"></div>
+          </div>
+        </div>
+
+        <!-- Card 2: 月度回款走势 -->
+        <div class="ivu-card">
+          <div class="ivu-card-head">
+            <p>月度回款走势</p>
+          </div>
+          <div class="ivu-card-body">
+            <div class="chart-box" ref="monthlyChartEl"></div>
+          </div>
+        </div>
+
+        <!-- Card 2: 回款进度 -->
+        <div class="ivu-card">
+          <div class="ivu-card-head"><p>回款进度</p></div>
+          <div class="ivu-card-body">
+            <div class="pmb-process-box">
+              <div class="pmb-process-tit">回款进度</div>
+              <div class="pmb-process">
+                <div v-for="m in MILESTONES" :key="m.name"
+                     class="process-item" style="width:16.6667%;"
+                     @mouseenter="hoveredMilestone = m.name"
+                     @mouseleave="hoveredMilestone = null">
+                  <div class="process-bg">
+                    <div :class="['process-in', { active: m.pct===100 }]"
+                         :style="{ width: m.pct + '%' }"></div>
+                  </div>
+                  <p class="process-name">{{ m.name }}</p>
+                  <p class="process-pct">{{ m.pct }}%</p>
+                  <div class="process-hover-box" v-if="hoveredMilestone === m.name">
+                    <div><strong>计划金额:</strong> {{ m.plan }}</div>
+                    <div><strong>实际回款:</strong> {{ m.actual }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: 多标签表格 -->
+        <div class="ivu-card">
+          <div class="ivu-card-body" style="padding:0;">
+            <div style="border-bottom:1px solid #dcdee2;">
+              <div style="padding:0 16px;">
+                <div class="ivu-tabs-nav-scroll">
+                  <div class="ivu-tabs-nav">
+                    <div v-for="t in TABLE_TABS" :key="t"
+                         :class="['ivu-tabs-tab', { active: t === activeTab }]"
+                         @click="activeTab = t">{{ t }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 开票回款 tab -->
+            <div v-if="activeTab==='开票回款'" class="ivu-table-wrapper">
+              <!-- filter banner -->
+              <div v-if="filterMonth" style="padding:8px 18px;background:#e6f4ff;border-bottom:1px solid #bae0ff;display:flex;align-items:center;gap:10px;font-size:13px;color:#1677ff;">
+                <span>筛选：{{ filterMonth }} 的收款记录</span>
+                <span @click="filterMonth=null" style="cursor:pointer;color:#ff4d4f;font-weight:600;margin-left:auto;">✕ 清除筛选</span>
+              </div>
+              <table class="ivu-table">
+                <thead><tr>
+                  <th><div class="ivu-table-cell">客户名称</div></th>
+                  <th><div class="ivu-table-cell">合同编号</div></th>
+                  <th><div class="ivu-table-cell">订单编号</div></th>
+                  <th><div class="ivu-table-cell">发票编号</div></th>
+                  <th><div class="ivu-table-cell">开票日期</div></th>
+                  <th><div class="ivu-table-cell">开票币别</div></th>
+                  <th><div class="ivu-table-cell">开票金额</div></th>
+                  <th><div class="ivu-table-cell">开票/收款差</div></th>
+                  <th><div class="ivu-table-cell">开票类型</div></th>
+                  <th><div class="ivu-table-cell">收款编号</div></th>
+                  <th><div class="ivu-table-cell">收款日期</div></th>
+                  <th><div class="ivu-table-cell">收款金额</div></th>
+                  <th><div class="ivu-table-cell">状态</div></th>
+                </tr></thead>
+                <tbody>
+                  <tr v-for="r in filteredRows" :key="r.inv"
+                      :style="filterMonth && r.recDate.startsWith(filterMonth) ? 'background:#e6f4ff;' : ''">
+                    <td><div class="ivu-table-cell">{{ r.customer }}</div></td>
+                    <td><div class="ivu-table-cell">{{ r.contract }}</div></td>
+                    <td><div class="ivu-table-cell">{{ r.order }}</div></td>
+                    <td><div class="ivu-table-cell" style="color:#2d8cf0;">{{ r.inv }}</div></td>
+                    <td><div class="ivu-table-cell">{{ r.invDate }}</div></td>
+                    <td><div class="ivu-table-cell">{{ r.currency }}</div></td>
+                    <td><div class="ivu-table-cell" style="font-weight:500;">{{ r.invAmt }}</div></td>
+                    <td><div class="ivu-table-cell"
+                             :style="{ color: r.rawDiff < 0 ? '#ed4014' : r.rawDiff > 0 ? '#e6a23c' : '#19be6b' }">
+                          {{ r.diff }}
+                        </div></td>
+                    <td><div class="ivu-table-cell">{{ r.invType }}</div></td>
+                    <td><div class="ivu-table-cell">{{ r.recNo }}</div></td>
+                    <td><div class="ivu-table-cell">{{ r.recDate }}</div></td>
+                    <td><div class="ivu-table-cell" style="font-weight:500;">{{ r.recAmt }}</div></td>
+                    <td><div class="ivu-table-cell">
+                      <span :class="['ivu-tag', r.tagClass]">{{ r.status }}</span>
+                    </div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 项目回款明细 tab -->
+            <div v-if="activeTab==='项目回款明细'" class="ivu-table-wrapper">
+              <table class="ivu-table">
+                <thead><tr>
+                  <th><div class="ivu-table-cell">回款名称</div></th>
+                  <th><div class="ivu-table-cell">计划回款金额</div></th>
+                  <th><div class="ivu-table-cell">计划回款日期</div></th>
+                  <th><div class="ivu-table-cell">已开票金额</div></th>
+                  <th><div class="ivu-table-cell">已回款金额</div></th>
+                  <th><div class="ivu-table-cell">回款比例</div></th>
+                  <th><div class="ivu-table-cell">状态</div></th>
+                </tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div class="ivu-table-cell">预收款</div></td>
+                    <td><div class="ivu-table-cell">EUR 803,467.60</div></td>
+                    <td><div class="ivu-table-cell">2025-08-19</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">98%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-success">已回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">发货款</div></td>
+                    <td><div class="ivu-table-cell">EUR 1,190,126.40</div></td>
+                    <td><div class="ivu-table-cell">2025-11-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 1,190,126.40</div></td>
+                    <td><div class="ivu-table-cell">EUR 1,190,126.40</div></td>
+                    <td><div class="ivu-table-cell">100%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-success">已回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">开始实施款</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">2026-03-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">100%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-success">已回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">结束实施款</div></td>
+                    <td><div class="ivu-table-cell">EUR 595,063.20</div></td>
+                    <td><div class="ivu-table-cell">2026-06-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.01</div></td>
+                    <td><div class="ivu-table-cell">0%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-warning">待回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">上线款</div></td>
+                    <td><div class="ivu-table-cell">EUR 396,708.80</div></td>
+                    <td><div class="ivu-table-cell">2026-09-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">0%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-warning">待回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">质保款</div></td>
+                    <td><div class="ivu-table-cell">EUR 198,354.40</div></td>
+                    <td><div class="ivu-table-cell">2027-01-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">0%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-warning">待回款</span></div></td>
+                  </tr>
+                  <tr style="font-weight:600;background:#f5f9fa;">
+                    <td><div class="ivu-table-cell">合计</div></td>
+                    <td><div class="ivu-table-cell">EUR 3,977,138.00</div></td>
+                    <td><div class="ivu-table-cell">—</div></td>
+                    <td><div class="ivu-table-cell">EUR 2,776,961.60</div></td>
+                    <td><div class="ivu-table-cell">EUR 2,776,961.61</div></td>
+                    <td><div class="ivu-table-cell">70%</div></td>
+                    <td><div class="ivu-table-cell">—</div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 订单明细 tab -->
+            <div v-if="activeTab==='订单明细'" class="ivu-table-wrapper">
+              <!-- sub-tabs for orders -->
+              <div style="padding:12px 16px 0;border-bottom:1px solid #e8eaec;">
+                <div class="ivu-tabs-nav" style="padding-left:0;">
+                  <div :class="['ivu-tabs-tab', { active: activeOrder==='SF11606' }]"
+                       @click="activeOrder='SF11606'" style="font-size:13px;">SF11606</div>
+                  <div :class="['ivu-tabs-tab', { active: activeOrder==='IID06927' }]"
+                       @click="activeOrder='IID06927'" style="font-size:13px;">IID06927</div>
+                  <div :class="['ivu-tabs-tab', { active: activeOrder==='SFP01200' }]"
+                       @click="activeOrder='SFP01200'" style="font-size:13px;">SFP01200</div>
+                </div>
+              </div>
+              <table class="ivu-table">
+                <thead><tr>
+                  <th><div class="ivu-table-cell">回款名称</div></th>
+                  <th><div class="ivu-table-cell">计划回款金额</div></th>
+                  <th><div class="ivu-table-cell">收款预测日期</div></th>
+                  <th><div class="ivu-table-cell">已开票金额</div></th>
+                  <th><div class="ivu-table-cell">已回款金额</div></th>
+                  <th><div class="ivu-table-cell">回款比例</div></th>
+                  <th><div class="ivu-table-cell">状态</div></th>
+                </tr></thead>
+                <tbody v-if="activeOrder==='SF11606'">
+                  <tr>
+                    <td><div class="ivu-table-cell">预收款</div></td>
+                    <td><div class="ivu-table-cell">EUR 803,467.60</div></td>
+                    <td><div class="ivu-table-cell">2025-08-19</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">98%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-success">已回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">发货款</div></td>
+                    <td><div class="ivu-table-cell">EUR 1,190,126.40</div></td>
+                    <td><div class="ivu-table-cell">2025-11-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 1,190,126.40</div></td>
+                    <td><div class="ivu-table-cell">EUR 1,190,126.40</div></td>
+                    <td><div class="ivu-table-cell">100%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-success">已回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">开始实施款</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">2026-03-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">EUR 793,417.60</div></td>
+                    <td><div class="ivu-table-cell">100%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-success">已回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">结束实施款</div></td>
+                    <td><div class="ivu-table-cell">EUR 595,063.20</div></td>
+                    <td><div class="ivu-table-cell">2026-06-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.01</div></td>
+                    <td><div class="ivu-table-cell">0%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-warning">待回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">上线款</div></td>
+                    <td><div class="ivu-table-cell">EUR 396,708.80</div></td>
+                    <td><div class="ivu-table-cell">2026-09-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">0%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-warning">待回款</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell">质保款</div></td>
+                    <td><div class="ivu-table-cell">EUR 198,354.40</div></td>
+                    <td><div class="ivu-table-cell">2027-01-01</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">EUR 0.00</div></td>
+                    <td><div class="ivu-table-cell">0%</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-warning">待回款</span></div></td>
+                  </tr>
+                </tbody>
+                <tbody v-else>
+                  <tr>
+                    <td colspan="7"><div class="ivu-table-cell" style="color:#aaa;padding:24px 18px;">暂无数据</div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 收款单明细 tab -->
+            <div v-if="activeTab==='收款单明细'" class="ivu-table-wrapper">
+              <table class="ivu-table">
+                <thead><tr>
+                  <th><div class="ivu-table-cell">收款单编号</div></th>
+                  <th><div class="ivu-table-cell">客户名称</div></th>
+                  <th><div class="ivu-table-cell">收款日期</div></th>
+                  <th><div class="ivu-table-cell">收款币别</div></th>
+                  <th><div class="ivu-table-cell">收款金额</div></th>
+                  <th><div class="ivu-table-cell">关联发票</div></th>
+                  <th><div class="ivu-table-cell">状态</div></th>
+                </tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div class="ivu-table-cell" style="color:#2d8cf0;">SKD00018269</div></td>
+                    <td><div class="ivu-table-cell">SystemTeknik Logistics</div></td>
+                    <td><div class="ivu-table-cell">2026-06-23</div></td>
+                    <td><div class="ivu-table-cell">EUR</div></td>
+                    <td><div class="ivu-table-cell" style="font-weight:500;">793,417.60</div></td>
+                    <td><div class="ivu-table-cell">DE202606002</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-success">已核销</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell" style="color:#2d8cf0;">SKD00017226</div></td>
+                    <td><div class="ivu-table-cell">SystemTeknik Logistics</div></td>
+                    <td><div class="ivu-table-cell">2026-01-27</div></td>
+                    <td><div class="ivu-table-cell">EUR</div></td>
+                    <td><div class="ivu-table-cell" style="font-weight:500;">1,190,126.38</div></td>
+                    <td><div class="ivu-table-cell">DE202512015</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-success">已核销</span></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="ivu-table-cell" style="color:#2d8cf0;">SKD00017200</div></td>
+                    <td><div class="ivu-table-cell">SystemTeknik Logistics</div></td>
+                    <td><div class="ivu-table-cell">2026-01-21</div></td>
+                    <td><div class="ivu-table-cell">EUR</div></td>
+                    <td><div class="ivu-table-cell" style="font-weight:500;">793,417.59</div></td>
+                    <td><div class="ivu-table-cell">DE202510018</div></td>
+                    <td><div class="ivu-table-cell"><span class="ivu-tag tag-success">已核销</span></div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+
+      </div><!-- /回款 section -->
+    </div><!-- /content -->
+  </div><!-- /#app -->
+</div><!-- /.main-wrap -->
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script>
+const { createApp } = Vue;
+
+const PAGE_TABS = [
+  '信息','计划','团队','文档','成本','回款','风险','JIRA',
+  '工单','问题','SS任务','报告','实施服务单元','工时','机器人','合同','复盘','供应商','日历'
+];
+
+const TABLE_TABS = ['开票回款','项目回款明细','订单明细','收款单明细'];
+
+// Progress bar: exact values from 项目回款明细 tab (screenshot)
+const MILESTONES = [
+  { name:'预收款',    pct:98,  actual:'EUR 793,417.60',   plan:'EUR 803,467.60'   },
+  { name:'发货款',    pct:100, actual:'EUR 1,190,126.40', plan:'EUR 1,190,126.40' },
+  { name:'开始实施款', pct:100, actual:'EUR 793,417.60',   plan:'EUR 793,417.60'   },
+  { name:'结束实施款', pct:0,   actual:'EUR 0.01',         plan:'EUR 595,063.20'   },
+  { name:'上线款',    pct:0,   actual:'EUR 0.00',         plan:'EUR 396,708.80'   },
+  { name:'质保款',    pct:0,   actual:'EUR 0.00',         plan:'EUR 198,354.40'   },
+];
+
+const TABLE_ROWS = [
+  {
+    customer:'Dagrofa ApS', contract:'XSHT004240', order:'SF11606',
+    inv:'DE202606002', invDate:'2026-06-08', currency:'EUR',
+    invAmt:'793,417.60', rawDiff:0, diff:'+0.00', invType:'合同金额',
+    recNo:'SKD00018269', recDate:'2026-06-23', recAmt:'793,417.60',
+    status:'已回款', tagClass:'tag-success'
+  },
+  {
+    customer:'Dagrofa ApS', contract:'XSHT004240', order:'SF11606',
+    inv:'DE202512015', invDate:'2025-12-23', currency:'EUR',
+    invAmt:'1,190,126.40', rawDiff:-0.02, diff:'-0.02', invType:'合同金额',
+    recNo:'SKD00017226', recDate:'2026-01-27', recAmt:'1,190,126.38',
+    status:'已回款', tagClass:'tag-success'
+  },
+  {
+    customer:'Dagrofa ApS', contract:'XSHT004240', order:'SF11606',
+    inv:'DE202510018', invDate:'2025-10-11', currency:'EUR',
+    invAmt:'793,417.60', rawDiff:-0.01, diff:'-0.01', invType:'合同金额',
+    recNo:'SKD00017200', recDate:'2026-01-21', recAmt:'793,417.59',
+    status:'已回款', tagClass:'tag-success'
+  },
+  {
+    customer:'Dagrofa ApS', contract:'XSHT004240', order:'SF11606',
+    inv:'DE202607001', invDate:'2026-07-02', currency:'EUR',
+    invAmt:'900,000.00', rawDiff:0, diff:'—', invType:'合同金额',
+    recNo:'—', recDate:'—', recAmt:'—',
+    status:'待回款', tagClass:'tag-warning'
+  },
+  {
+    customer:'Dagrofa ApS', contract:'XSHT004240', order:'SF11606',
+    inv:'DE202603008', invDate:'2026-03-15', currency:'EUR',
+    invAmt:'16,000.00', rawDiff:0, diff:'—', invType:'补充金额',
+    recNo:'—', recDate:'—', recAmt:'—',
+    status:'逾期', tagClass:'tag-error'
+  },
+];
+
+// ── Milestone chart: CUMULATIVE lines (confirmed by screenshot tooltips)
+// 结束实施款 tooltip: plan=3,382,074.80 · 上线款 tooltip: plan=3,778,783.60
+// Per-milestone plan: 803,467.60 / 1,190,126.40 / 793,417.60 / 595,063.20 / 396,708.80 / 198,354.40
+const MILESTONE_LABELS = ['预收款','发货款','开始实施款','结束实施款','上线款','质保款'];
+const M_PLAN_C     = [803468, 1993594, 2787012, 3382075, 3778784, 3977138];
+const M_ACTUAL_C   = [793418, 1983544, 2776962, 2776962, 2776962, 2776962];
+const M_INVOICED_C = [793418, 1983544, 2776962, 2776962, 2776962, 2776962];
+
+// ── Monthly chart: per-month amounts aligned to real invoice/receipt dates ──
+// Plan: 预收款 planned Aug-25 per 订单明细 收款预测日期 2025-08-19 (803,468)
+// Receipts: Jan-26 (793,417.59 + 1,190,126.38) · Jun-26 (793,417.60)
+// Invoices: Oct-25 (793,417.60) · Dec-25 (1,190,126.40) · Jun-26 (793,417.60) · Jul-26 (900,000)
+const MONTHS = [
+  '2025-01','2025-02','2025-03','2025-04','2025-05','2025-06',
+  '2025-07','2025-08','2025-09','2025-10','2025-11','2025-12',
+  '2026-01','2026-02','2026-03','2026-04','2026-05','2026-06',
+  '2026-07','2026-08','2026-09','2026-10','2026-11','2026-12',
+];
+const PLAN     = [0,0,0,0,0,0,0, 803468, 0, 0,      1190126,    0,      0,      0,0,0,0, 793418, 595063, 0, 396709, 0, 0, 198354];
+const ACTUAL   = [0,0,0,0,0,0,0, 0,      0, 0,      0,          0,      1983544,0,0,0,0, 793418, 0,      0, 0,      0, 0, 0     ];
+const INVOICED = [0,0,0,0,0,0,0, 0,      0, 793418, 0,          1190126,0,      0,0,0,0, 793418, 900000, 0, 0,      0, 0, 0     ];
+const CUTOFF   = MONTHS.indexOf('2026-07');
+
+function cumulate(arr) { let s=0; return arr.map(v=>(s+=v,s)); }
+
+const TOOLTIP_STYLE = {
+  backgroundColor: 'rgb(245,249,250)', borderColor: 'rgb(240,244,245)',
+  textStyle: { fontFamily: 'Microsoft YaHei, PingFang SC, sans-serif', fontSize: 13, color: '#515a6e' },
+};
+const LEGEND_STYLE = {
+  data: ['计划回款','已回款','已开票'],
+  bottom: 4, icon: 'circle', itemWidth: 8, itemHeight: 8,
+  textStyle: { fontSize: 12, color: '#515a6e' }, itemGap: 20,
+};
+const Y_AXIS = {
+  type: 'value',
+  axisLabel: {
+    fontSize: 11, color: '#808695',
+    formatter: v => v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v,
+  },
+  splitLine: { lineStyle: { color: '#f0f2f5', type: 'dashed' } },
+  axisLine: { show: false }, axisTick: { show: false },
+};
+
+createApp({
+  data() {
+    return {
+      activePage: '回款',
+      activeTab: '开票回款',
+      activeOrder: 'SF11606',
+      hoveredMilestone: null,
+      filterMonth: null,
+      PAGE_TABS, TABLE_TABS, MILESTONES, TABLE_ROWS,
+      milestoneChart: null,
+      monthlyChart: null,
+    };
+  },
+  mounted() {
+    this.$nextTick(() => {
+      this.renderMilestoneChart();
+      this.renderMonthlyChart();
+    });
+    window.addEventListener('resize', () => {
+      this.milestoneChart && this.milestoneChart.resize();
+      this.monthlyChart   && this.monthlyChart.resize();
+    });
+  },
+  watch: {
+    filterMonth() { this.renderMonthlyChart(); },
+  },
+  methods: {
+    renderMilestoneChart() {
+      if (this.milestoneChart) { this.milestoneChart.dispose(); }
+      const el = this.$refs.milestoneChartEl;
+      if (!el) return;
+      this.milestoneChart = echarts.init(el);
+      this.milestoneChart.setOption({
+        tooltip: {
+          trigger: 'axis',
+          ...TOOLTIP_STYLE,
+          formatter(params) {
+            let s = `<div style="font-weight:700;margin-bottom:6px;color:#17233d;">${params[0].axisValue}</div>`;
+            params.forEach(p => {
+              s += `<div style="margin-bottom:2px;">${p.marker} ${p.seriesName}:&nbsp;<b>EUR ${Number(p.value).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</b></div>`;
+            });
+            return s;
+          }
+        },
+        legend: LEGEND_STYLE,
+        grid: { top: 16, left: 70, right: 20, bottom: 40 },
+        xAxis: {
+          type: 'category', data: MILESTONE_LABELS,
+          axisLabel: { fontSize: 12, color: '#808695' },
+          axisLine: { lineStyle: { color: '#e8eaec' } },
+          axisTick: { show: false }, splitLine: { show: false },
+        },
+        yAxis: Y_AXIS,
+        series: [
+          {
+            name: '计划回款', type: 'line', data: M_PLAN_C,
+            lineStyle: { color: '#57a3f3', type: 'dashed', width: 2 },
+            itemStyle: { color: '#57a3f3' }, symbol: 'circle', symbolSize: 6,
+          },
+          {
+            name: '已回款', type: 'line', data: M_ACTUAL_C,
+            lineStyle: { color: '#19be6b', width: 2 },
+            itemStyle: { color: '#19be6b' }, symbol: 'circle', symbolSize: 6,
+          },
+          {
+            name: '已开票', type: 'line', data: M_INVOICED_C,
+            lineStyle: { color: '#f90', width: 2 },
+            itemStyle: { color: '#f90' }, symbol: 'circle', symbolSize: 6,
+          },
+        ],
+      });
+    },
+
+    renderMonthlyChart() {
+      if (this.monthlyChart) { this.monthlyChart.dispose(); }
+      const el = this.$refs.monthlyChartEl;
+      if (!el) return;
+      this.monthlyChart = echarts.init(el);
+
+      // Mirror the GCF cashflow chart style:
+      // Solid blue bars = confirmed receipts (past), light blue bars = planned forecast (future)
+      // Purple line = cumulative receipts showing progress toward contract total
+      const fm = this.filterMonth;
+      const confirmed = ACTUAL.map((v, i) => ({
+        value: i < CUTOFF ? v : 0,
+        itemStyle: { color: fm ? (MONTHS[i] === fm ? '#1677ff' : '#91caff') : '#2d8cf0', borderRadius: [3,3,0,0] },
+      }));
+      const forecast = PLAN.map((v, i) => ({
+        value: i >= CUTOFF ? v : 0,
+        itemStyle: { color: fm ? (MONTHS[i] === fm ? '#4096ff' : '#d6eaff') : '#91caff', borderRadius: [3,3,0,0] },
+      }));
+      const cumAct = cumulate(ACTUAL);
+
+      const labels = MONTHS.map(m => m.slice(2).replace('-', '/'));
+
+      this.monthlyChart.setOption({
+        tooltip: {
+          trigger: 'axis',
+          ...TOOLTIP_STYLE,
+          formatter(params) {
+            const mo = params[0].axisValue;
+            const isForecast = MONTHS[params[0].dataIndex] >= MONTHS[CUTOFF];
+            let s = `<b>${mo}${isForecast ? ' <span style="font-size:11px;color:#808695;font-weight:400;">（预测）</span>' : ''}</b><br/>`;
+            params.forEach(p => {
+              if (p.value == null || p.value === 0) return;
+              s += `${p.marker}${p.seriesName}：EUR ${Number(p.value).toLocaleString()}<br/>`;
+            });
+            return s;
+          }
+        },
+        legend: {
+          data: ['已回款','计划回款','累计回款'],
+          top: 4, right: 0, icon: 'circle', itemWidth: 8, itemHeight: 8,
+          textStyle: { fontSize: 11, color: '#515a6e' }, itemGap: 16,
+        },
+        grid: { top: 36, bottom: 28, left: 70, right: 20 },
+        xAxis: {
+          type: 'category', data: labels,
+          axisLabel: { color: '#808695', fontSize: 11 },
+          axisLine: { lineStyle: { color: '#e8eaec' } },
+          axisTick: { show: false },
+        },
+        yAxis: {
+          type: 'value',
+          axisLabel: {
+            fontSize: 11, color: '#808695',
+            formatter: v => v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v,
+          },
+          splitLine: { lineStyle: { color: '#f0f2f5' } },
+          axisLine: { show: false }, axisTick: { show: false },
+        },
+        series: [
+          {
+            name: '已回款', type: 'bar', stack: 'amt', data: confirmed,
+            barMaxWidth: 22,
+          },
+          {
+            name: '计划回款', type: 'bar', stack: 'amt', data: forecast,
+            barMaxWidth: 22,
+          },
+          {
+            name: '累计回款', type: 'line', data: cumAct,
+            smooth: true, symbol: 'circle', symbolSize: 5,
+            lineStyle: { color: '#722ed1', width: 2.5 },
+            itemStyle: { color: '#722ed1' },
+            label: {
+              show: true, position: 'top',
+              formatter: p => p.value > 0 ? 'EUR ' + (p.value/1000000).toFixed(2)+'M' : '',
+              fontSize: 10, color: '#722ed1', fontWeight: 600,
+            },
+          },
+        ],
+      });
+
+      // Click a bar → filter 开票回款 table to that month
+      this.monthlyChart.off('click');
+      this.monthlyChart.on('click', params => {
+        if (params.componentType !== 'series') return;
+        const mo = MONTHS[params.dataIndex];
+        if (!mo) return;
+        this.filterMonth = mo;
+        this.activeTab = '开票回款';
+      });
+    },
+  },
+  computed: {
+    filteredRows() {
+      if (!this.filterMonth) return TABLE_ROWS;
+      return TABLE_ROWS.filter(r => r.recDate && r.recDate.startsWith(this.filterMonth));
+    },
+  },
+}).mount('#app');
+</script>
+</body>
+</html>
