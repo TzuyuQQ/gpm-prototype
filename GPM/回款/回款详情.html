@@ -833,9 +833,10 @@ createApp({
             let s = `<b>${labels[idx]}${isForecast ? ' <span style="font-size:11px;color:#808695;font-weight:400;">（预测）</span>' : ''}</b><br/>`;
             params.forEach(p => {
               if (p.value == null || p.value === 0) return;
-              s += `${p.marker}${p.seriesName}：EUR ${Number(p.value).toLocaleString()}<br/>`;
+              const display = Math.abs(p.value);
+              s += `${p.marker}${p.seriesName}：<b>EUR ${display.toLocaleString()}</b><br/>`;
             });
-            return s;
+            return s || `<b>${labels[idx]}</b><br/>暂无数据`;
           }
         },
         legend: {
