@@ -781,27 +781,17 @@ createApp({
       // Solid blue bars = confirmed receipts (past), light blue bars = planned forecast (future)
       // Purple line = cumulative receipts showing progress toward contract total
       const fm = this.filterMonth;
-      const baseBlue  = fm ? '#91caff' : '#1677ff';
-      const baseOrange= fm ? '#ffd8a8' : '#fa8c16';
-      const baseFcast = fm ? '#d6eaff' : '#91caff';
 
-      // Blue UP: actual receipts (confirmed, past)
-      const confirmed = ACTUAL.map((v, i) => ({
-        value: i < CUTOFF ? v : 0,
-        itemStyle: { color: fm && MONTHS[i]===fm ? '#1677ff' : baseBlue, borderRadius:[3,3,0,0] },
-      }));
+      // Plain number arrays — keeps tooltip p.value reliable
+      const confirmed = ACTUAL.map((v, i) => i < CUTOFF ? v : 0);
+      const overdue   = PLAN.map((v, i)   => (i < CUTOFF && v > 0 && ACTUAL[i] === 0) ? -v : 0);
+      const forecast  = PLAN.map((v, i)   => i >= CUTOFF ? v : 0);
 
-      // Orange DOWN: planned-but-missed in past months (payment delay)
-      const overdue = PLAN.map((v, i) => ({
-        value: (i < CUTOFF && v > 0 && ACTUAL[i] === 0) ? -v : 0,
-        itemStyle: { color: fm && MONTHS[i]===fm ? '#fa8c16' : baseOrange, borderRadius:[0,0,3,3] },
-      }));
-
-      // Light blue UP: future forecast
-      const forecast = PLAN.map((v, i) => ({
-        value: i >= CUTOFF ? v : 0,
-        itemStyle: { color: fm && MONTHS[i]===fm ? '#4096ff' : baseFcast, borderRadius:[3,3,0,0] },
-      }));
+      // Per-item color via callback (avoids object-format data which breaks tooltips)
+      const barColor = (base, highlight) => params => {
+        const i = params.dataIndex;
+        return fm ? (MONTHS[i] === fm ? highlight : base) : highlight;
+      };
 
       // Purple cumulative line of actual receipts
       const cumAct = cumulate(ACTUAL);
@@ -814,9 +804,9 @@ createApp({
 
       const fmtEur = v => {
         const abs = Math.abs(v);
-        if (abs >= 1000000) return 'EUR ' + (v/1000000).toFixed(2) + 'M';
-        if (abs >= 1000)    return 'EUR ' + (v/1000).toFixed(0) + 'K';
-        return abs > 0 ? 'EUR ' + v : '';
+        if (abs >= 1000000) return 'EUR ' + (abs/1000000).toFixed(2) + 'M';
+        if (abs >= 1000)    return 'EUR ' + (abs/1000).toFixed(0) + 'K';
+        return abs > 0 ? 'EUR ' + abs : '';
       };
 
       // Only label months where value increased (a receipt arrived)
@@ -830,13 +820,14 @@ createApp({
             const idx = params[0].dataIndex;
             const mo = MONTHS[idx];
             const isForecast = mo >= MONTHS[CUTOFF];
-            let s = `<b>${labels[idx]}${isForecast ? ' <span style="font-size:11px;color:#808695;font-weight:400;">（预测）</span>' : ''}</b><br/>`;
+            let rows = '';
             params.forEach(p => {
-              if (p.value == null || p.value === 0) return;
-              const display = Math.abs(p.value);
-              s += `${p.marker}${p.seriesName}：<b>EUR ${display.toLocaleString()}</b><br/>`;
+              const v = p.value;
+              if (v == null || v === 0) return;
+              rows += `${p.marker}${p.seriesName}：<b>EUR ${Math.abs(v).toLocaleString()}</b><br/>`;
             });
-            return s || `<b>${labels[idx]}</b><br/>暂无数据`;
+            const head = `<b>${labels[idx]}${isForecast ? ' <span style="font-size:11px;color:#808695;font-weight:400;">（预测）</span>' : ''}</b><br/>`;
+            return head + (rows || '暂无数据');
           }
         },
         legend: {
@@ -869,14 +860,17 @@ createApp({
           {
             name: '已回款', type: 'bar', stack: 'pos', data: confirmed,
             barMaxWidth: 22,
+            itemStyle: { color: barColor('#91caff', '#1677ff'), borderRadius: [3,3,0,0] },
           },
           {
             name: '计划回款', type: 'bar', stack: 'pos', data: forecast,
             barMaxWidth: 22,
+            itemStyle: { color: barColor('#d6eaff', '#91caff'), borderRadius: [3,3,0,0] },
           },
           {
             name: '逾期未收', type: 'bar', stack: 'neg', data: overdue,
             barMaxWidth: 22,
+            itemStyle: { color: barColor('#ffd8a8', '#fa8c16'), borderRadius: [0,0,3,3] },
           },
           {
             name: '累计回款', type: 'line', data: cumAct,
