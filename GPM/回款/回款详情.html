@@ -868,26 +868,14 @@ createApp({
           {
             name: '已回款', type: 'bar', stack: 'pos', data: confirmed,
             barMaxWidth: 22,
-            label: {
-              show: true, position: 'top', fontSize: 10, color: '#1677ff', fontWeight: 600,
-              formatter: p => p.value > 0 ? fmtEur(p.value) : '',
-            },
           },
           {
             name: '计划回款', type: 'bar', stack: 'pos', data: forecast,
             barMaxWidth: 22,
-            label: {
-              show: true, position: 'top', fontSize: 10, color: '#808695', fontWeight: 600,
-              formatter: p => p.value > 0 ? fmtEur(p.value) : '',
-            },
           },
           {
             name: '逾期未收', type: 'bar', stack: 'neg', data: overdue,
             barMaxWidth: 22,
-            label: {
-              show: true, position: 'bottom', fontSize: 10, color: '#fa8c16', fontWeight: 600,
-              formatter: p => p.value < 0 ? fmtEur(p.value) : '',
-            },
           },
           {
             name: '累计回款', type: 'line', data: cumAct,
