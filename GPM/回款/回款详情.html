@@ -805,8 +805,6 @@ createApp({
 
       // Purple cumulative line of actual receipts
       const cumAct = cumulate(ACTUAL);
-      // Only label months where value increased (a receipt arrived)
-      const cumLabels = cumAct.map((v, i) => (v > 0 && (i === 0 || v !== cumAct[i-1])) ? fmtEur(v) : '');
 
       const MON_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const labels = MONTHS.map(m => {
@@ -820,6 +818,9 @@ createApp({
         if (abs >= 1000)    return 'EUR ' + (v/1000).toFixed(0) + 'K';
         return abs > 0 ? 'EUR ' + v : '';
       };
+
+      // Only label months where value increased (a receipt arrived)
+      const cumLabels = cumAct.map((v, i) => (v > 0 && (i === 0 || v !== cumAct[i-1])) ? fmtEur(v) : '');
 
       this.monthlyChart.setOption({
         tooltip: {
