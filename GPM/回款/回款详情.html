@@ -805,6 +805,8 @@ createApp({
 
       // Purple cumulative line of actual receipts
       const cumAct = cumulate(ACTUAL);
+      // Only label months where value increased (a receipt arrived)
+      const cumLabels = cumAct.map((v, i) => (v > 0 && (i === 0 || v !== cumAct[i-1])) ? fmtEur(v) : '');
 
       const MON_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const labels = MONTHS.map(m => {
@@ -893,7 +895,7 @@ createApp({
             itemStyle: { color: '#722ed1' },
             label: {
               show: true, position: 'top',
-              formatter: p => p.value > 0 ? fmtEur(p.value) : '',
+              formatter: p => cumLabels[p.dataIndex] || '',
               fontSize: 10, color: '#722ed1', fontWeight: 600,
             },
           },
