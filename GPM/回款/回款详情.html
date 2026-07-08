@@ -277,7 +277,7 @@
         <div class="ivu-card">
           <div class="ivu-card-head" style="display:flex;align-items:center;">
             <p>月度回款走势</p>
-            <span style="margin-left:auto;font-size:11px;color:#808695;font-weight:400;">柱形=已回款/计划，橙色=逾期未收，紫线=累计回款</span>
+            <span style="margin-left:auto;font-size:11px;color:#808695;font-weight:400;">柱形=回款/成本，紫线=净现金流</span>
           </div>
           <div class="ivu-card-body">
             <div class="chart-box" ref="monthlyChartEl"></div>
@@ -677,6 +677,13 @@ const ACTUAL   = [0,0,0,0,0,0,0, 0,      0, 0,      0,          0,      1983544,
 const INVOICED = [0,0,0,0,0,0,0, 0,      0, 793418, 0,          1190126,0,      0,0,0,0, 793418, 900000, 0, 0,      0, 0, 0     ];
 const CUTOFF   = MONTHS.indexOf('2026-07');
 
+// ── Cost data (negative = below x-axis, mirrors GCF 支出 format) ──
+// Confirmed costs (past): hardware procurement, software, implementation labor
+// Total ~EUR 3.05M against contract EUR 3.977M → ~23% gross margin
+const COST_CONF  = [0,0,0,0,0,-600000, 0,-800000, 0,-400000, 0,-350000, 0,-300000, 0,-250000, 0,-150000, 0,0,0,0,0,0];
+// Forecast costs (future): post-go-live support, warranty
+const COST_FCAST = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -120000,0,-200000,0,0,-80000];
+
 function cumulate(arr) { let s=0; return arr.map(v=>(s+=v,s)); }
 
 const TOOLTIP_STYLE = {
@@ -777,24 +784,22 @@ createApp({
       if (!el) return;
       this.monthlyChart = echarts.init(el);
 
-      // Mirror the GCF cashflow chart style:
-      // Solid blue bars = confirmed receipts (past), light blue bars = planned forecast (future)
-      // Purple line = cumulative receipts showing progress toward contract total
+      // Above x-axis: 回款 (collections)  |  Below x-axis: 成本 (costs)
+      // Purple line: cumulative net cashflow = collections − costs
       const fm = this.filterMonth;
 
-      // Plain number arrays — keeps tooltip p.value reliable
-      const confirmed = ACTUAL.map((v, i) => i < CUTOFF ? v : 0);
-      const overdue   = PLAN.map((v, i)   => (i < CUTOFF && v > 0 && ACTUAL[i] === 0) ? -v : 0);
-      const forecast  = PLAN.map((v, i)   => i >= CUTOFF ? v : 0);
+      const recConf  = ACTUAL.map((v, i) => i < CUTOFF ? v : 0);
+      const recFcast = PLAN.map((v, i)   => i >= CUTOFF ? v : 0);
+      const costConf  = COST_CONF.map(v => v);   // already negative
+      const costFcast = COST_FCAST.map(v => v);  // already negative
 
-      // Per-item color via callback (avoids object-format data which breaks tooltips)
-      const barColor = (base, highlight) => params => {
-        const i = params.dataIndex;
-        return fm ? (MONTHS[i] === fm ? highlight : base) : highlight;
-      };
-
-      // Purple cumulative line of actual receipts
-      const cumAct = cumulate(ACTUAL);
+      // Cumulative net: receipt − |cost| per month
+      const netPerMonth = MONTHS.map((_, i) => {
+        const rec  = recConf[i]  + recFcast[i];
+        const cost = Math.abs(costConf[i]) + Math.abs(costFcast[i]);
+        return rec - cost;
+      });
+      const cumNet = cumulate(netPerMonth);
 
       const MON_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const labels = MONTHS.map(m => {
@@ -804,13 +809,13 @@ createApp({
 
       const fmtEur = v => {
         const abs = Math.abs(v);
-        if (abs >= 1000000) return 'EUR ' + (abs/1000000).toFixed(2) + 'M';
-        if (abs >= 1000)    return 'EUR ' + (abs/1000).toFixed(0) + 'K';
-        return abs > 0 ? 'EUR ' + abs : '';
+        if (abs >= 1000000) return (v < 0 ? '-' : '') + 'EUR ' + (abs/1000000).toFixed(2) + 'M';
+        if (abs >= 1000)    return (v < 0 ? '-' : '') + 'EUR ' + (abs/1000).toFixed(0) + 'K';
+        return abs > 0 ? 'EUR ' + v : '';
       };
 
-      // Only label months where value increased (a receipt arrived)
-      const cumLabels = cumAct.map((v, i) => (v > 0 && (i === 0 || v !== cumAct[i-1])) ? fmtEur(v) : '');
+      // Net line: label only when value changes
+      const netLabels = cumNet.map((v, i) => (i === 0 || v !== cumNet[i-1]) ? fmtEur(v) : '');
 
       this.monthlyChart.setOption({
         tooltip: {
@@ -818,22 +823,20 @@ createApp({
           ...TOOLTIP_STYLE,
           formatter(params) {
             const idx = params[0].dataIndex;
-            const mo = MONTHS[idx];
-            const isForecast = mo >= MONTHS[CUTOFF];
+            const isForecast = MONTHS[idx] >= MONTHS[CUTOFF];
             let rows = '';
             params.forEach(p => {
-              const v = p.value;
-              if (v == null || v === 0) return;
-              rows += `${p.marker}${p.seriesName}：<b>EUR ${Math.abs(v).toLocaleString()}</b><br/>`;
+              if (p.value == null || p.value === 0) return;
+              rows += `${p.marker}${p.seriesName}：<b>EUR ${Math.abs(p.value).toLocaleString()}</b><br/>`;
             });
             const head = `<b>${labels[idx]}${isForecast ? ' <span style="font-size:11px;color:#808695;font-weight:400;">（预测）</span>' : ''}</b><br/>`;
             return head + (rows || '暂无数据');
           }
         },
         legend: {
-          data: ['已回款','逾期未收','计划回款','累计回款'],
+          data: ['已回款','计划回款','已支出','预测支出','净现金流'],
           top: 4, right: 0, icon: 'circle', itemWidth: 8, itemHeight: 8,
-          textStyle: { fontSize: 11, color: '#515a6e' }, itemGap: 14,
+          textStyle: { fontSize: 11, color: '#515a6e' }, itemGap: 12,
         },
         grid: { top: 48, bottom: 28, left: 80, right: 20 },
         xAxis: {
@@ -850,7 +853,7 @@ createApp({
             fontSize: 11, color: '#808695',
             formatter: v => {
               const abs = Math.abs(v);
-              return abs >= 1000000 ? (v/1000000).toFixed(1)+'M' : abs >= 1000 ? (v/1000).toFixed(0)+'K' : v;
+              return abs >= 1000000 ? (abs/1000000).toFixed(1)+'M' : abs >= 1000 ? (abs/1000).toFixed(0)+'K' : v;
             },
           },
           splitLine: { lineStyle: { color: '#f0f2f5' } },
@@ -858,28 +861,29 @@ createApp({
         },
         series: [
           {
-            name: '已回款', type: 'bar', stack: 'pos', data: confirmed,
-            barMaxWidth: 22,
-            itemStyle: { color: barColor('#91caff', '#1677ff'), borderRadius: [3,3,0,0] },
+            name: '已回款', type: 'bar', stack: 'in', data: recConf,
+            barMaxWidth: 22, itemStyle: { color: '#1677ff', borderRadius: [3,3,0,0] },
           },
           {
-            name: '计划回款', type: 'bar', stack: 'pos', data: forecast,
-            barMaxWidth: 22,
-            itemStyle: { color: barColor('#d6eaff', '#91caff'), borderRadius: [3,3,0,0] },
+            name: '计划回款', type: 'bar', stack: 'in', data: recFcast,
+            barMaxWidth: 22, itemStyle: { color: '#91caff', borderRadius: [3,3,0,0] },
           },
           {
-            name: '逾期未收', type: 'bar', stack: 'neg', data: overdue,
-            barMaxWidth: 22,
-            itemStyle: { color: barColor('#ffd8a8', '#fa8c16'), borderRadius: [0,0,3,3] },
+            name: '已支出', type: 'bar', stack: 'out', data: costConf,
+            barMaxWidth: 22, itemStyle: { color: '#ff7a00', borderRadius: [0,0,3,3] },
           },
           {
-            name: '累计回款', type: 'line', data: cumAct,
+            name: '预测支出', type: 'bar', stack: 'out', data: costFcast,
+            barMaxWidth: 22, itemStyle: { color: '#ffc069', borderRadius: [0,0,3,3] },
+          },
+          {
+            name: '净现金流', type: 'line', data: cumNet,
             smooth: true, symbol: 'circle', symbolSize: 5,
             lineStyle: { color: '#722ed1', width: 2.5 },
             itemStyle: { color: '#722ed1' },
             label: {
               show: true, position: 'top',
-              formatter: p => cumLabels[p.dataIndex] || '',
+              formatter: p => netLabels[p.dataIndex] || '',
               fontSize: 10, color: '#722ed1', fontWeight: 600,
             },
           },
